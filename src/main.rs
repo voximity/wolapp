@@ -1,3 +1,4 @@
+mod arp;
 mod mac;
 
 use std::{net::SocketAddr, sync::Arc};
@@ -5,7 +6,7 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Result as Anyhow;
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{delete, get, post},
@@ -53,7 +54,9 @@ async fn main() -> Anyhow<()> {
             .route("/machines", get(get_machines))
             .route("/machines", post(add_machine))
             .route("/machines", delete(delete_machine))
-            .route("/machines/wake", post(wake_machine)),
+            .route("/machines/wake", post(wake_machine))
+            .route("/arp", get(arp_table))
+            .route("/arp/me", get(my_arp_entry)),
     );
 
     // in release mode, we can target the `frontend` distribution
@@ -75,7 +78,13 @@ async fn main() -> Anyhow<()> {
 
     // wheee
     let listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port))).await?;
-    axum::serve(listener, app).await?;
+
+    println!("wolapp now listening on :{port} :)");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -159,4 +168,20 @@ async fn wake_machine(Query(WakeMachineQuery { mac }): Query<WakeMachineQuery>) 
     sock.send_to(&payload, "255.255.255.255:7").await.unwrap();
 
     StatusCode::OK.into_response()
+}
+
+async fn arp_table() -> Response {
+    let Ok(table) = arp::table() else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+
+    Json(table).into_response()
+}
+
+async fn my_arp_entry(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> Response {
+    let Ok(table) = arp::table() else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+
+    Json(table.macs_from_ip(addr.ip())).into_response()
 }
