@@ -91,12 +91,12 @@ async fn main() -> Anyhow<()> {
 
 #[derive(FromRow, Serialize, Deserialize)]
 struct Machine {
-    name: String,
+    id: String,
     mac: MacAddr,
 }
 
 async fn get_machines(State(state): State<Arc<AppState>>) -> Response {
-    let Ok(rows) = sqlx::query_as::<_, Machine>("SELECT name, mac FROM machines")
+    let Ok(rows) = sqlx::query_as::<_, Machine>("SELECT id, mac FROM machines")
         .fetch_all(&state.db)
         .await
     else {
@@ -107,15 +107,15 @@ async fn get_machines(State(state): State<Arc<AppState>>) -> Response {
 }
 
 async fn add_machine(State(state): State<Arc<AppState>>, Json(machine): Json<Machine>) -> Response {
-    if let Err(e) = sqlx::query("INSERT INTO machines (name, mac) VALUES ($1, $2)")
-        .bind(&machine.name)
+    if let Err(e) = sqlx::query("INSERT INTO machines (id, mac) VALUES ($1, $2)")
+        .bind(&machine.id)
         .bind(machine.mac.0.as_slice())
         .execute(&state.db)
         .await
     {
         eprintln!(
-            "warn: failed to insert machine (name {}, mac {}): {e}",
-            machine.name, machine.mac
+            "warn: failed to insert machine (id {}, mac {}): {e}",
+            machine.id, machine.mac
         );
 
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -133,12 +133,12 @@ async fn delete_machine(
     State(state): State<Arc<AppState>>,
     Query(DeleteMachineQuery { name }): Query<DeleteMachineQuery>,
 ) -> Response {
-    if let Err(e) = sqlx::query("DELETE FROM machines WHERE name = $1")
+    if let Err(e) = sqlx::query("DELETE FROM machines WHERE id = $1")
         .bind(&name)
         .execute(&state.db)
         .await
     {
-        eprintln!("warn: failed to delete machine (name {}): {e}", name);
+        eprintln!("warn: failed to delete machine (id {}): {e}", name);
 
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }

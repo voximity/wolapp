@@ -20,6 +20,14 @@ impl Display for MacAddr {
     }
 }
 
+impl TryFrom<&[u8]> for MacAddr {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, ()> {
+        Ok(Self(value.try_into().map_err(|_| ())?))
+    }
+}
+
 impl sqlx::Type<Sqlite> for MacAddr {
     fn type_info() -> SqliteTypeInfo {
         <&[u8] as sqlx::Type<Sqlite>>::type_info()
