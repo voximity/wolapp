@@ -1,4 +1,4 @@
-use std::{net::IpAddr, sync::LazyLock};
+use std::{collections::HashSet, net::IpAddr, sync::LazyLock};
 
 use futures::TryStreamExt;
 use rtnetlink::{new_connection, packet_route::neighbour::NeighbourMessage};
@@ -19,7 +19,7 @@ pub fn table() -> Result<Table, ()> {
             });
 
             let mut neighbors = HANDLE.neighbours /* yuck */ ().get().execute();
-            let mut result = vec![];
+            let mut result = HashSet::new();
 
             while let Some(msg) = neighbors
                 .try_next()
@@ -27,7 +27,7 @@ pub fn table() -> Result<Table, ()> {
                 .inspect_err(|e| eprintln!("failed to stream neighbor: {e}"))
                 .map_err(|_| ())?
             {
-                result.push(match TableRow::try_from(msg) {
+                result.insert(match TableRow::try_from(msg) {
                     Ok(row) => row,
                     Err(_) => continue,
                 });

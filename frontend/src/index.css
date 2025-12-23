@@ -1,1 +1,22 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-mono: 'Iosevka', monospace;
+  --font-sans: var(--font-mono);
+}
+
+@layer base {
+  body {
+    @apply bg-purple-50 dark:bg-stone-950 dark:text-purple-50;
+  }
+
+  .header-text-effect-stop {
+    stop-color: var(--color-purple-600);
+  }
+
+  .header-text-effect-stop-end {
+    stop-color: oklch(55.8% 0.288 302.321 / 0%);
+  }
+}

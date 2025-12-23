@@ -1,4 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::{
+    collections::HashSet,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+};
 
 use windows::Win32::{
     NetworkManagement::IpHelper::{FreeMibTable, GetIpNetTable2, MIB_IPNET_ROW2, MIB_IPNET_TABLE2},
@@ -21,11 +24,11 @@ pub fn table() -> Result<Table, ()> {
             return Err(());
         }
 
-        let mut result = vec![];
+        let mut result = HashSet::new();
         let base = &(*table).Table as *const MIB_IPNET_ROW2;
         for i in 0..(*table).NumEntries {
             let row = *base.offset(i as isize);
-            result.push(match TableRow::try_from(row) {
+            result.insert(match TableRow::try_from(row) {
                 Ok(r) => r,
                 Err(_) => continue,
             });

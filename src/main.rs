@@ -1,7 +1,10 @@
 mod arp;
 mod mac;
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 
 use anyhow::Result as Anyhow;
 use axum::{
@@ -15,7 +18,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{
     Pool, Sqlite, SqlitePool, migrate::Migrator, prelude::FromRow, sqlite::SqliteConnectOptions,
 };
-use tokio::net::{TcpListener, UdpSocket};
+use tokio::{
+    net::{TcpListener, UdpSocket},
+    process::Command,
+};
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 
@@ -126,24 +132,30 @@ async fn add_machine(State(state): State<Arc<AppState>>, Json(machine): Json<Mac
 
 #[derive(Deserialize)]
 struct DeleteMachineQuery {
-    name: String,
+    id: String,
 }
 
 async fn delete_machine(
     State(state): State<Arc<AppState>>,
-    Query(DeleteMachineQuery { name }): Query<DeleteMachineQuery>,
+    Query(DeleteMachineQuery { id }): Query<DeleteMachineQuery>,
 ) -> Response {
-    if let Err(e) = sqlx::query("DELETE FROM machines WHERE id = $1")
-        .bind(&name)
+    let result = match sqlx::query("DELETE FROM machines WHERE id = $1")
+        .bind(&id)
         .execute(&state.db)
         .await
     {
-        eprintln!("warn: failed to delete machine (id {}): {e}", name);
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("warn: failed to delete machine (id {}): {e}", id);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
 
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    match result.rows_affected() {
+        1 => StatusCode::OK,
+        _ => StatusCode::NOT_FOUND,
     }
-
-    StatusCode::OK.into_response()
+    .into_response()
 }
 
 #[derive(Deserialize)]
@@ -183,5 +195,33 @@ async fn my_arp_entry(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> Response {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
 
-    Json(table.macs_from_ip(addr.ip())).into_response()
+    #[derive(Serialize)]
+    struct MyArpEntryResponse {
+        ip: IpAddr,
+        macs: Vec<MacAddr>,
+    }
+
+    Json(MyArpEntryResponse {
+        ip: addr.ip(),
+        macs: table.macs_from_ip(addr.ip()),
+    })
+    .into_response()
+}
+
+#[derive(Deserialize)]
+struct PingMachineQuery {
+    ip: IpAddr,
+}
+
+#[allow(unused)]
+async fn ping_machine(Query(PingMachineQuery { ip }): Query<PingMachineQuery>) -> Response {
+    let success = Command::new("ping")
+        .args(["-c", "1", "-W", "1"])
+        .arg(format!("{ip}"))
+        .status()
+        .await
+        .map(|c| c.success())
+        .unwrap_or(false);
+
+    Json(success).into_response()
 }

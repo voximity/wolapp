@@ -1,0 +1,18 @@
+{
+  "lsp": {
+    "vscode-css-language-server": {
+      "settings": {
+        "css": {
+          "lint": {
+            "unknownAtRules": "ignore",
+          },
+        },
+      },
+    },
+  },
+  "languages": {
+    "CSS": {
+      "tab_size": 2,
+    },
+  },
+}
